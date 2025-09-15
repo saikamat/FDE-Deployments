@@ -4,6 +4,7 @@
 *.pem
 *.key
 
+
 # Python
 __pycache__/
 *.py[cod]
@@ -14,6 +15,8 @@ htmlcov/
 .venv/
 venv/
 env/
+*.pyc
+.ipynb_checkpoints
 
 # Streamlit
 .streamlit/
@@ -21,3 +24,8 @@ env/
 # OS specific
 .DS_Store
 Thumbs.db 
+
+
+
+artifacts/
+mlruns/
