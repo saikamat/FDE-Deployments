@@ -4,6 +4,7 @@
 *.pem
 *.key
 
+
 # Python
 __pycache__/
 *.py[cod]
@@ -14,7 +15,7 @@ htmlcov/
 .venv/
 venv/
 env/
-docs/
+=======
 
 # Streamlit
 .streamlit/
@@ -22,3 +23,8 @@ docs/
 # OS specific
 .DS_Store
 Thumbs.db 
+
+
+
+artifacts/
+mlruns/
