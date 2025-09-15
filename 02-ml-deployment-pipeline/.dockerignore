@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+*.tmp
+*.swp
+.env
+.git
+.gitignore
+.ipynb_checkpoints
+mlruns/
+notebooks/
+artifacts/model_*/*.joblib  # optional: exclude large old models if needed
