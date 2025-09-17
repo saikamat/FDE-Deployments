@@ -1,27 +1,20 @@
-# Use a slim Python base image
-FROM python:3.11-slim
+FROM public.ecr.aws/lambda/python:3.11
 
-# Set working directory
-WORKDIR /app
+# Install build dependencies for compiling Python packages
+RUN yum update -y && \
+    yum install -y gcc gcc-c++ make && \
+    yum clean all
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Optional: set working dir in Lambda task root
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Copy requirements first for caching
+# Copy requirements and install
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Python deps
-RUN pip install --no-cache-dir -r requirements.txt \
-    fastapi uvicorn joblib
-
-# Copy source code
+# Copy source and artifacts into the image
 COPY app/ ./app/
 COPY artifacts/ ./artifacts/
 
-# Expose FastAPI default port
-EXPOSE 8000
-
-# Run FastAPI with Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# CMD is the Lambda handler string: module.submodule:variable_or_callable
+CMD ["app.main.handler"]

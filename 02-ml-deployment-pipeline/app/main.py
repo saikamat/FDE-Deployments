@@ -31,3 +31,6 @@ def predict(req: PredictRequest):
     pred = model.predict(X)[0]
     class_name = model_info["target_names"][pred]
     return {"prediction": int(pred), "class_name": class_name}
+
+from mangum import Mangum
+handler = Mangum(app)
