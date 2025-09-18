@@ -50,7 +50,7 @@ def test_dependencies_available():
     import pandas as pd
     import fastapi
     import mangum
-    import scikit_learn as sklearn
+    import sklearn
     
     # Test basic functionality
     assert hasattr(np, 'array')
