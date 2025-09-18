@@ -51,11 +51,13 @@ def test_dependencies_available():
     import fastapi
     import mangum
     import sklearn
+    from sklearn.ensemble import RandomForestClassifier
     
     # Test basic functionality
     assert hasattr(np, 'array')
     assert hasattr(pd, 'DataFrame')
-    assert hasattr(sklearn, 'RandomForestClassifier')
+    assert RandomForestClassifier is not None
+    assert hasattr(sklearn, 'ensemble')
 
 @patch('app.model_loader.load_model')
 def test_app_with_mock_model(mock_load_model):
