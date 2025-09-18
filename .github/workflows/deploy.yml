@@ -99,6 +99,13 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Create artifacts directory for Docker build
+      run: |
+        # Create artifacts directory if it doesn't exist
+        mkdir -p ./02-ml-deployment-pipeline/artifacts
+        # Create a placeholder file to ensure the directory is not empty
+        echo '{"placeholder": "This directory will contain model artifacts after training"}' > ./02-ml-deployment-pipeline/artifacts/.gitkeep
+
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       env:
