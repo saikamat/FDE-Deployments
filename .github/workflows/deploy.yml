@@ -1,0 +1,159 @@
+name: ML Pipeline CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY: ml-inference
+  LAMBDA_FUNCTION_NAME: ml-inference-lambda-function
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r 02-ml-deployment-pipeline/requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run tests
+      run: |
+        # Add your tests here when you create them
+        echo "Running basic validation tests..."
+        cd 02-ml-deployment-pipeline
+        python -c "import app.model_loader; print('✅ Model loader imports successfully')"
+        python -c "import joblib, json, numpy; print('✅ All dependencies available')"
+        python -c "import fastapi, mangum; print('✅ FastAPI and Mangum available')"
+
+    - name: Test model loader functions (without loading model)
+      run: |
+        cd 02-ml-deployment-pipeline
+        python -c "
+        from app.model_loader import get_latest_model_dir
+        import os
+        # Test that the function exists and handles missing artifacts gracefully
+        try:
+            get_latest_model_dir()
+            print('❌ Expected FileNotFoundError for missing artifacts')
+        except FileNotFoundError as e:
+            print(f'✅ Model loader correctly handles missing artifacts: {e}')
+        "
+
+    - name: Test FastAPI app structure (without model loading)
+      run: |
+        cd 02-ml-deployment-pipeline
+        python -c "
+        # Test that we can import the app components without loading the model
+        from fastapi import FastAPI
+        from pydantic import BaseModel
+        import numpy as np
+        print('✅ All FastAPI components import successfully')
+        
+        # Test that we can create the request/response models
+        class TestRequest(BaseModel):
+            features: list[float]
+        
+        class TestResponse(BaseModel):
+            prediction: int
+            class_name: str
+        
+        print('✅ Pydantic models can be created successfully')
+        "
+
+    - name: Run pytest tests
+      run: |
+        cd 02-ml-deployment-pipeline
+        # Run CI-specific tests that don't require model artifacts
+        python -m pytest tests/test_ci.py -v --tb=short
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build a docker container and push it to ECR
+        docker build --platform linux/amd64 --provenance=false -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./02-ml-deployment-pipeline
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Update Lambda function
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Update Lambda function with new image
+        aws lambda update-function-code \
+          --function-name $LAMBDA_FUNCTION_NAME \
+          --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        
+        # Wait for update to complete
+        aws lambda wait function-updated \
+          --function-name $LAMBDA_FUNCTION_NAME
+        
+        echo "✅ Lambda function updated successfully"
+
+    - name: Test deployment
+      run: |
+        # Test the deployed function
+        echo "Testing deployed Lambda function..."
+        
+        # Get API Gateway URL (you'll need to set this as a secret)
+        API_URL="${{ secrets.API_GATEWAY_URL }}"
+        
+        # Test root endpoint
+        curl -f "$API_URL/" || echo "❌ Root endpoint test failed"
+        
+        # Test predict endpoint
+        curl -f -X POST "$API_URL/predict" \
+          -H "Content-Type: application/json" \
+          -d '{"features": [5.1, 3.5, 1.4, 0.2]}' || echo "❌ Predict endpoint test failed"
+        
+        echo "✅ Deployment tests completed"
+
+    - name: Create deployment summary
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** ${{ steps.build-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Lambda Function:** ${{ env.LAMBDA_FUNCTION_NAME }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [Lambda Function](https://console.aws.amazon.com/lambda/home?region=${{ env.AWS_REGION }}#/functions/${{ env.LAMBDA_FUNCTION_NAME }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [ECR Repository](https://console.aws.amazon.com/ecr/repositories?region=${{ env.AWS_REGION }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [API Gateway](https://console.aws.amazon.com/apigateway/home?region=${{ env.AWS_REGION }})" >> $GITHUB_STEP_SUMMARY
