@@ -22,7 +22,7 @@
         "lambda:GetFunction",
         "lambda:WaitFunctionUpdated"
       ],
-      "Resource": "arn:aws:lambda:eu-central-1:*:function:ml-inference-lambda-function"
+        "Resource": "arn:aws:lambda:eu-central-1:*:function:ml-inference-lamdba-function"
     },
     {
       "Effect": "Allow",
